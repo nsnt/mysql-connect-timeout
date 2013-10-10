@@ -16,8 +16,8 @@ params = {
   :host => (host || "192.168.14.111"),
   :username => (username || "root"),
   :password => (password || "mysql"),
-  :connect_timeout => (connect_timeout || 1)
 }
+params[:connect_timeout] = connect_timeout if connect_timeout
 
 client = nil
 5.times do |time|
