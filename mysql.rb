@@ -4,12 +4,13 @@
 require "mysql2"
 require "optparse"
 
-host = username = password = connect_timeout = nil
+host = username = password = connect_timeout = read_timeout = nil
 opt = OptionParser.new
 opt.on('-H VAL') {|val| host = val}
 opt.on('-U VAL') {|val| username = val}
 opt.on('-P VAL') {|val| password = val}
-opt.on('-T VAL') {|val| connect_timeout = val.to_i}
+opt.on('-C VAL') {|val| connect_timeout = val.to_i}
+opt.on('-R VAL') {|val| read_timeout = val.to_i}
 opt.parse!(ARGV)
 
 params = {
@@ -18,6 +19,7 @@ params = {
   :password => (password || "mysql"),
 }
 params[:connect_timeout] = connect_timeout if connect_timeout
+params[:read_timeout] = read_timeout if read_timeout
 
 client = nil
 5.times do |time|
@@ -30,7 +32,32 @@ client = nil
 end
 
 if client
-  puts "OK"
+  puts "Connect: OK"
 else
-  puts "NG"
+  puts "Connect: NG"
+  exit 0
+end
+
+begin
+  result = client.query("show databases;")
+  puts "Show database: OK"
+  result.each do |row|
+    puts "#{row.inspect}"
+  end
+rescue => err
+  puts "Show database: NG"
+  puts err.message
+  exit 0
+end
+
+begin
+  result = client.query("create database testtesttest;")
+  puts "Create database: OK"
+  result = client.query("drop database testtesttest;")
+  puts "Drop database: OK"
+rescue => err
+  puts "Create/Drop database: NG"
+  puts err.message
+  puts err.backtrace
+  exit 0
 end
