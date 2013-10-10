@@ -38,11 +38,14 @@ else
   exit 0
 end
 
+target_db = "testtesttest"
+target_db_exists = false
 begin
   result = client.query("show databases;")
   puts "Show database: OK"
   result.each do |row|
     puts "#{row.inspect}"
+    target_db_exists = true if row.values.include?(target_db)
   end
 rescue => err
   puts "Show database: NG"
@@ -63,9 +66,13 @@ rescue => err
 end
 
 begin
-  result = client.query("create database testtesttest;")
+  if target_db_exists
+    result = client.query("drop database #{target_db};")
+    puts "Drop database: OK"
+  end
+  result = client.query("create database #{target_db};")
   puts "Create database: OK"
-  result = client.query("drop database testtesttest;")
+  result = client.query("drop database #{target_db};")
   puts "Drop database: OK"
 rescue => err
   puts "Create/Drop database: NG"
