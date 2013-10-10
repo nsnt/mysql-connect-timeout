@@ -51,6 +51,18 @@ rescue => err
 end
 
 begin
+  result = client.query("show tables in mysql;")
+  puts "Show tables: OK"
+  result.each do |row|
+    puts "#{row.inspect}"
+  end
+rescue => err
+  puts "Show tables: NG"
+  puts err.message
+  exit 0
+end
+
+begin
   result = client.query("create database testtesttest;")
   puts "Create database: OK"
   result = client.query("drop database testtesttest;")
