@@ -1,7 +1,7 @@
 #!/usr/bin/env ruby
 # encoding: utf-8
 
-require 'mysql2'
+require "mysql2"
 
 client = nil
 5.times do
