@@ -1,16 +1,20 @@
 #!/usr/bin/env ruby
 # encoding: utf-8
 
+require "socket"
 require "mysql2"
 require "optparse"
 
-host = username = password = connect_timeout = read_timeout = nil
+TIMEOUT = 1.0
+
+host = username = password = connect_timeout = read_timeout = write_timeout = nil
 opt = OptionParser.new
 opt.on('-H VAL') {|val| host = val}
 opt.on('-U VAL') {|val| username = val}
 opt.on('-P VAL') {|val| password = val}
-opt.on('-C VAL') {|val| connect_timeout = val.to_i}
-opt.on('-R VAL') {|val| read_timeout = val.to_i}
+opt.on('-C VAL') {|val| connect_timeout = val.to_f}
+opt.on('-R VAL') {|val| read_timeout = val.to_f}
+opt.on('-W VAL') {|val| write_timeout = val.to_f}
 opt.parse!(ARGV)
 
 params = {
@@ -20,21 +24,55 @@ params = {
 }
 params[:connect_timeout] = connect_timeout if connect_timeout
 params[:read_timeout] = read_timeout if read_timeout
+params[:write_timeout] = write_timeout if write_timeout
 
-def mysql_retry(num, &blk)
+def timeout_val(timeout)
+  secs = Integer(timeout)
+  usecs = Integer((timeout - secs) * 1_000_000)
+  optval = [secs, usecs].pack("l_2")
+  return optval
+end
+
+def conn_acceptable?(host, port=3306, r_timeout=TIMEOUT, s_timeout = TIMEOUT)
+  addr = Socket.getaddrinfo(host, nil)
+  sock = Socket.new(Socket.const_get(addr[0][0]), Socket::SOCK_STREAM, 0)
+
+  sock.setsockopt(Socket::SOL_SOCKET, Socket::SO_RCVTIMEO, timeout_val(r_timeout))
+  sock.setsockopt(Socket::SOL_SOCKET, Socket::SO_SNDTIMEO, timeout_val(s_timeout))
+
+  sock.connect(Socket.pack_sockaddr_in(port, addr[0][3]))
+
+  return sock
+end
+
+def my_retry(num, &blk)
   result = nil
   num.times do |time|
     begin
       result = blk.call
       break if result
     rescue Mysql2::Error => err_mysql2
-      puts "#{err_mysql2.message}: #{time + 1} times"
+      puts "Mysql2::Error #{err_mysql2.message}: #{time + 1} times"
+    rescue => err
+      puts "#{err.message}: #{time + 1} times"
     end
   end
   result
 end
 
-client = mysql_retry(3) do
+conn = my_retry(3) do
+  require"pry";require"pry-debugger";binding.pry
+  conn_acceptable?(params[:host], 3306, params[:read_timeout], params[:write_timeout])
+end
+
+if conn
+  puts "Socket connect: OK"
+else
+  puts "Socket connect: NG"
+  puts "Going on .."
+end
+
+client = my_retry(3) do
   Mysql2::Client.new(params)
 end
 
@@ -45,7 +83,7 @@ else
   exit 0
 end
 
-result = mysql_retry(3) do
+result = my_retry(3) do
   client.query("show databases;")
 end
 
@@ -62,7 +100,7 @@ else
   exit 0
 end
 
-result = mysql_retry(3) do
+result = my_retry(3) do
   client.query("show tables in mysql;")
 end
 
@@ -76,7 +114,7 @@ else
   exit 0
 end
 
-result = mysql_retry(3) do
+result = my_retry(3) do
   val = false
   if target_db_exists
     client.query("drop database #{target_db};")
@@ -95,7 +133,7 @@ else
   puts "Drop database: NG"
 end
 
-result = mysql_retry(3) do
+result = my_retry(3) do
   client.query("create database #{target_db};")
   true
 end
@@ -107,7 +145,7 @@ else
   exit 0
 end
 
-result = mysql_retry(3) do
+result = my_retry(3) do
   client.query("drop database #{target_db};")
   true
 end
